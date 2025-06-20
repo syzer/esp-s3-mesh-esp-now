@@ -42,7 +42,7 @@ use esp_hal::gpio::{Level, Output};
 #[cfg(feature = "esp32c6")]
 use esp_hal::{rmt::Rmt, time::Rate};
 
-use esp_now_blinky::{Led, MacAddress};
+use esp_now_blinky::{Led, mac};
 use esp_wifi::{
     esp_now::{BROADCAST_ADDRESS, PeerInfo, EspNow},
     init,
@@ -104,9 +104,9 @@ async fn esp_now_receive_task(esp_now: &'static Mutex<NoopRawMutex, EspNow<'stat
         // Try to interpret the payload as UTF‑8 so we can print it nicely
         let payload = r.data();
         if let Ok(text) = core::str::from_utf8(payload) {
-            info!("Received text \"{}\" from {:?}", text, MacAddress::from(r.info.src_address));
+            info!("Received text \"{}\" from {}", text, mac(r.info.src_address));
         } else {
-            info!("Received bytes {:?} from {:?}", payload, MacAddress::from(r.info.src_address));
+            info!("Received bytes {:?} from {}", payload, mac(r.info.src_address));
         }
         
         // Only respond to broadcast messages
