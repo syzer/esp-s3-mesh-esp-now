@@ -5,17 +5,19 @@ use esp_alloc as _;
 use esp_backtrace as _;
 use esp_hal::{
     clock::CpuClock,
+    delay::Delay,
     main,
     rng::Rng,
     time::{self, Duration},
     timer::timg::TimerGroup,
 };
+use esp_hal::gpio::{Level, Output};
 use esp_println::println;
 use esp_wifi::{
     esp_now::{BROADCAST_ADDRESS, PeerInfo},
     init,
 };
-
+use embedded_hal::delay::DelayNs;
 esp_bootloader_esp_idf::esp_app_desc!();
 
 #[main]
@@ -25,8 +27,10 @@ fn main() -> ! {
     let peripherals = esp_hal::init(config);
 
     esp_alloc::heap_allocator!(size: 72 * 1024);
+    let mut led = Output::new(peripherals.GPIO21, Level::Low, Default::default());
 
     let timg0 = TimerGroup::new(peripherals.TIMG0);
+    let mut delay = Delay::new();
 
     let esp_wifi_ctrl = init(
         timg0.timer0,
@@ -48,6 +52,11 @@ fn main() -> ! {
 
     let mut next_send_time = time::Instant::now() + Duration::from_secs(5);
     loop {
+        led.set_high();
+        delay.delay_ms(500u32);
+        led.set_low();
+        delay.delay_ms(500u32);
+
         let r = esp_now.receive();
         if let Some(r) = r {
             println!("Received {:?}", r);
