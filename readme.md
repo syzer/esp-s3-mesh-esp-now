@@ -1,11 +1,12 @@
-# ESP-NOW Blinky
+# ESP-NOW Blinky with Embassy
 
-A simple ESP-NOW wireless communication example that works on both ESP32-S3 and ESP32-C6 chips. The project demonstrates:
+A modern async ESP-NOW wireless communication example using Embassy async runtime that works on both ESP32-S3 and ESP32-C6 chips. The project demonstrates:
 
-- LED blinking every 500ms
-- ESP-NOW broadcast messages every 5 seconds
-- Automatic peer discovery and response
-- Cross-chip compatibility (S3 ↔ C6)
+- **Async LED blinking**: Non-blocking LED control using Embassy timers
+- **ESP-NOW broadcasting**: Async message sending every 5 seconds  
+- **Automatic peer discovery**: Non-blocking peer detection and response
+- **Cross-chip compatibility**: S3 ↔ C6 communication
+- **Embassy async runtime**: Efficient cooperative multitasking
 
 ## Hardware Support
 
@@ -88,10 +89,12 @@ espflash flash --monitor --chip esp32c6 --log-format defmt target/riscv32imac-un
 
 ## How it Works
 
-1. **LED Blinking**: The LED toggles every 500ms using a blocking delay
-2. **ESP-NOW Broadcasting**: Every 5 seconds, sends a broadcast message "0123456789"
-3. **Peer Discovery**: When receiving a broadcast, automatically adds the sender as a peer
-4. **Peer Response**: Responds to known peers with "Hello Peer" message
+1. **Embassy Async Runtime**: Uses SystemTimer for efficient non-blocking operations
+2. **Async LED Blinking**: LED toggles every 500ms using `Timer::after()` without blocking
+3. **ESP-NOW Broadcasting**: Every 5 seconds, sends a broadcast message "0123456789"
+4. **Peer Discovery**: When receiving a broadcast, automatically adds the sender as a peer
+5. **Peer Response**: Responds to known peers with "Hello Peer" message
+6. **Cooperative Multitasking**: All operations run in a single main loop without blocking
 
 ## Testing Communication Between Devices
 
@@ -134,6 +137,20 @@ To test ESP-NOW communication between two devices:
 - **ESP-NOW Range**: Typically 200-300 meters line-of-sight outdoors  
 - **Channel**: Fixed to WiFi channel 11 for reliable communication
 - **Memory Usage**: Heap allocator configured for 72KB (suitable for ESP-NOW operations)
+- **Embassy Benefits**: 
+  - Non-blocking operations improve responsiveness
+  - Lower power consumption through efficient sleeping
+  - Better resource utilization with cooperative scheduling
+  - Easier concurrent programming with async/await patterns
+
+## Embassy Async Architecture
+
+This project uses Embassy's async runtime which provides several advantages:
+
+- **Efficient Timing**: `Timer::after()` allows other tasks to run during delays
+- **SystemTimer Integration**: Uses ESP32's built-in SystemTimer for precise timing
+- **Zero-Cost Abstractions**: Async operations compile to efficient state machines
+- **Single-threaded**: No need for complex locking or synchronization
 
 ## Build Optimization
 
@@ -187,5 +204,7 @@ This script will:
 
 - **Dual Target Support**: Build for both ESP32-S3 (Xtensa) and ESP32-C6 (RISC-V) from the same codebase
 - **Feature Flags**: Clean separation between chip-specific configurations
+- **Embassy Async**: Modern async/await runtime for efficient resource usage
 - **Just Commands**: Streamlined build/flash workflow with parallel compilation
 - **Cross-Architecture**: Demonstrates ESP-NOW communication between different ESP32 architectures
+- **Non-blocking Operations**: All timing and I/O operations use async patterns
