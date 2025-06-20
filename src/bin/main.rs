@@ -144,19 +144,62 @@ async fn esp_now_receive_task(esp_now: &'static Mutex<NoopRawMutex, EspNow<'stat
 #[embassy_executor::task]
 async fn esp_now_broadcast_task(esp_now: &'static Mutex<NoopRawMutex, EspNow<'static>>) {
     info!("ESP-NOW broadcast task started");
-    
+
+    // ─── self-sync state ───────────────────────────────────────────────────────
+    const INTERVAL_MS: u64 = 2_000;               // 2-second nominal period
+    let mut next_slot = embassy_time::Instant::now()
+        + Duration::from_millis(INTERVAL_MS);      // first slot
+    let mut before;                                // last "own send" - set in loop
+    let mut after: Option<embassy_time::Instant>;  // RTT measurement - set in loop
+
     loop {
-        // Wait 5 seconds before sending next broadcast
-        Timer::after(Duration::from_secs(5)).await;
-        
+        // 1) WAIT UNTIL WE REACH THE CURRENT SLOT ──────────────────────────────
+        let now = embassy_time::Instant::now();
+        if now < next_slot {
+            Timer::at(next_slot).await;
+        }
+
+        // 2) ***BROADCAST*** ---------------------------------------------------
         let status = {
             let mut esp_now_guard = esp_now.lock().await;
             esp_now_guard
                 .send(&BROADCAST_ADDRESS, b"0123456789")
-                .expect("Failed to send ESP-NOW broadcast")
+                .expect("Broadcast send failed")
                 .wait()
         };
-        info!("Send broadcast status: {:?}", status);
+        info!("Broadcast status: {:?}", status);
+
+        before = embassy_time::Instant::now();
+        next_slot = before + Duration::from_millis(INTERVAL_MS);
+        after = None;                              // reset RTT measurement
+
+        // 3) SMALL LISTEN WINDOW – look for echoes ‐────────────────────────────
+        let listen_deadline = before + Duration::from_millis(INTERVAL_MS / 2);
+        while embassy_time::Instant::now() < listen_deadline {
+            if let Some(r) = esp_now.lock().await.receive() {
+                if r.info.dst_address == BROADCAST_ADDRESS {
+                    // got somebody else's ping
+                    if after.is_none() {
+                        after = Some(embassy_time::Instant::now());
+                        // half-RTT tweak
+                        let half_rtt =
+                            (after.unwrap() - before).as_millis() as u64 / 2;
+                        next_slot =
+                            before + Duration::from_millis(half_rtt + INTERVAL_MS);
+                        info!(
+                            "Echo detected: half-RTT={} ms → next slot adjusted",
+                            half_rtt
+                        );
+                    } else {
+                        // second echo within the same window → start new cycle
+                        break;
+                    }
+                }
+            } else {
+                // no frame → yield a little
+                Timer::after(Duration::from_millis(5)).await;
+            }
+        }
     }
 }
 
