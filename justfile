@@ -31,11 +31,11 @@ build-c6:
 build-all: build-s3 build-c6
 
 # Flash to ESP32-S3
-flash-s3:
-    cargo run --features esp32s3 --target xtensa-esp32s3-none-elf
+flash-s3: build-s3
+    espflash flash --monitor --chip esp32s3 --log-format defmt target/xtensa-esp32s3-none-elf/debug/esp_now_blinky
 
 # Flash to ESP32-C6
-flash-c6:
+flash-c6: build-c6
     espflash flash --monitor --chip esp32c6 --log-format defmt target/riscv32imac-unknown-none-elf/debug/esp_now_blinky
 
 # Clean build artifacts

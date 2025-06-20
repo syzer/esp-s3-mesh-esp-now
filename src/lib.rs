@@ -8,6 +8,8 @@ use esp_hal_smartled::{smart_led_buffer, SmartLedsAdapter};
 #[cfg(feature = "esp32c6")]
 use smart_leds::{RGB8, SmartLedsWrite};
 #[cfg(feature = "esp32c6")]
+use smart_leds::hsv::{Hsv, hsv2rgb};
+#[cfg(feature = "esp32c6")]
 use esp_hal::rmt::{TxChannel, TxChannelCreator};
 #[cfg(feature = "esp32c6")]
 use esp_hal::gpio::OutputPin;
@@ -28,6 +30,7 @@ where
     TX: TxChannel,
 {
     ws2812: Option<SmartLedsAdapter<TX, 25>>,
+    hue: u8,
 }
 
 #[cfg(feature = "esp32s3")]
@@ -54,6 +57,7 @@ where
         let led_adapter = SmartLedsAdapter::new(channel, pin, smart_led_buffer!(1));
         Self {
             ws2812: Some(led_adapter),
+            hue: 0,
         }
     }
 }
@@ -95,15 +99,29 @@ where
     /// Set LED color/brightness using WS2812.
     pub fn set_color(&mut self, brightness: u8) -> Result<(), ()> {
         if let Some(ws2812) = &mut self.ws2812 {
-            // Generate random color
-            let r = ((brightness as u16 * 200) / 255) as u8;
-            let g = ((brightness as u16 * 100) / 255) as u8;
-            let b = ((brightness as u16 * 150) / 255) as u8;
-            let color = RGB8::new(r, g, b);
-            
-            match ws2812.write([color].iter().cloned()) {
-                Ok(_) => return Ok(()),
-                Err(_) => return Err(()),
+            if brightness > 0 {
+                // Generate HSV color with cycling hue
+                let hsv = Hsv {
+                    hue: self.hue,
+                    sat: 255,  // Full saturation for vibrant colors
+                    val: brightness,  // Use brightness as value
+                };
+                let rgb = hsv2rgb(hsv);
+                
+                // Advance hue for next call
+                self.hue = self.hue.wrapping_add(15);
+                
+                match ws2812.write([rgb].iter().cloned()) {
+                    Ok(_) => return Ok(()),
+                    Err(_) => return Err(()),
+                }
+            } else {
+                // Turn off LED
+                let black = RGB8::new(0, 0, 0);
+                match ws2812.write([black].iter().cloned()) {
+                    Ok(_) => return Ok(()),
+                    Err(_) => return Err(()),
+                }
             }
         }
         Err(())
