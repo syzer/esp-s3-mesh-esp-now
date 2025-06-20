@@ -42,7 +42,7 @@ use esp_hal::gpio::{Level, Output};
 #[cfg(feature = "esp32c6")]
 use esp_hal::{rmt::Rmt, time::Rate};
 
-use esp_now_blinky::Led;
+use esp_now_blinky::{Led, MacAddress};
 use esp_wifi::{
     esp_now::{BROADCAST_ADDRESS, PeerInfo, EspNow},
     init,
@@ -91,35 +91,49 @@ async fn esp_now_receive_task(esp_now: &'static Mutex<NoopRawMutex, EspNow<'stat
             esp_now_guard.receive()
         };
         
-        if let Some(r) = received {
-            // Try to interpret the payload as UTF‑8 so we can print it nicely
-            let payload = r.data();
-            if let Ok(text) = core::str::from_utf8(payload) {
-                info!("Received text \"{}\" from {:?}", text, r.info.src_address);
-            } else {
-                info!("Received bytes {:?} from {:?}", payload, r.info.src_address);
+        // Early return if no message received - continue with timer
+        let r = match received {
+            Some(r) => r,
+            None => {
+                // Small delay to prevent busy waiting
+                Timer::after(Duration::from_millis(5)).await;
+                continue;
             }
-            
-            if r.info.dst_address == BROADCAST_ADDRESS {
-                let mut esp_now_guard = esp_now.lock().await;
-                if !esp_now_guard.peer_exists(&r.info.src_address) {
-                    esp_now_guard
-                        .add_peer(PeerInfo {
-                            interface: esp_wifi::esp_now::EspNowWifiInterface::Sta,
-                            peer_address: r.info.src_address,
-                            lmk: None,
-                            channel: None,
-                            encrypt: false,
-                        })
-                        .expect("Failed to add ESP-NOW peer");
-                }
-                let status = esp_now_guard
-                    .send(&r.info.src_address, b"Hello Peer")
-                    .expect("Failed to send ESP-NOW message")
-                    .wait();
-                info!("Send hello to peer status: {:?}", status);
-            }
+        };
+        
+        // Try to interpret the payload as UTF‑8 so we can print it nicely
+        let payload = r.data();
+        if let Ok(text) = core::str::from_utf8(payload) {
+            info!("Received text \"{}\" from {:?}", text, MacAddress::from(r.info.src_address));
+        } else {
+            info!("Received bytes {:?} from {:?}", payload, MacAddress::from(r.info.src_address));
         }
+        
+        // Only respond to broadcast messages
+        if r.info.dst_address != BROADCAST_ADDRESS {
+            // Small delay to prevent busy waiting
+            Timer::after(Duration::from_millis(5)).await;
+            continue;
+        }
+        
+        // Handle broadcast message - add peer and respond
+        let mut esp_now_guard = esp_now.lock().await;
+        if !esp_now_guard.peer_exists(&r.info.src_address) {
+            esp_now_guard
+                .add_peer(PeerInfo {
+                    interface: esp_wifi::esp_now::EspNowWifiInterface::Sta,
+                    peer_address: r.info.src_address,
+                    lmk: None,
+                    channel: None,
+                    encrypt: false,
+                })
+                .expect("Failed to add ESP-NOW peer");
+        }
+        let status = esp_now_guard
+            .send(&r.info.src_address, b"Hello Peer")
+            .expect("Failed to send ESP-NOW message")
+            .wait();
+        info!("Send hello to peer status: {:?}", status);
         
         // Small delay to prevent busy waiting
         Timer::after(Duration::from_millis(10)).await;
