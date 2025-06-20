@@ -111,11 +111,11 @@ async fn esp_now_receive_task(esp_now: &'static Mutex<NoopRawMutex, EspNow<'stat
                             channel: None,
                             encrypt: false,
                         })
-                        .unwrap();
+                        .expect("Failed to add ESP-NOW peer");
                 }
                 let status = esp_now_guard
                     .send(&r.info.src_address, b"Hello Peer")
-                    .unwrap()
+                    .expect("Failed to send ESP-NOW message")
                     .wait();
                 info!("Send hello to peer status: {:?}", status);
             }
@@ -139,7 +139,7 @@ async fn esp_now_broadcast_task(esp_now: &'static Mutex<NoopRawMutex, EspNow<'st
             let mut esp_now_guard = esp_now.lock().await;
             esp_now_guard
                 .send(&BROADCAST_ADDRESS, b"0123456789")
-                .unwrap()
+                .expect("Failed to send ESP-NOW broadcast")
                 .wait()
         };
         info!("Send broadcast status: {:?}", status);
@@ -164,7 +164,7 @@ async fn main(_spawner: Spawner) {
     let led = Led::new_gpio(Output::new(peripherals.GPIO21, Level::Low, Default::default()));
     
     #[cfg(feature = "esp32c6")]
-    let rmt = Rmt::new(peripherals.RMT, Rate::from_mhz(80)).unwrap();
+    let rmt = Rmt::new(peripherals.RMT, Rate::from_mhz(80)).expect("Failed to initialize RMT");
     
     #[cfg(feature = "esp32c6")]
     let led = Led::new_ws2812(rmt.channel0, peripherals.GPIO8);
@@ -185,17 +185,17 @@ async fn main(_spawner: Spawner) {
         timg0.timer0,
         Rng::new(peripherals.RNG),
         peripherals.RADIO_CLK,
-    ).unwrap());
+    ).expect("Failed to initialize ESP WiFi controller"));
 
     let wifi = peripherals.WIFI;
-    let (mut controller, interfaces) = esp_wifi::wifi::new(esp_wifi_ctrl, wifi).unwrap();
-    controller.set_mode(esp_wifi::wifi::WifiMode::Sta).unwrap();
-    controller.start().unwrap();
+    let (mut controller, interfaces) = esp_wifi::wifi::new(esp_wifi_ctrl, wifi).expect("Failed to create WiFi controller and interfaces");
+    controller.set_mode(esp_wifi::wifi::WifiMode::Sta).expect("Failed to set WiFi mode to Station");
+    controller.start().expect("Failed to start WiFi controller");
 
     let esp_now = interfaces.esp_now;
-    esp_now.set_channel(11).unwrap();
+    esp_now.set_channel(11).expect("Failed to set ESP-NOW channel");
 
-    info!("esp-now version {:?}", esp_now.version().unwrap());
+    info!("esp-now version {:?}", esp_now.version().expect("Failed to get ESP-NOW version"));
 
     // Create a static mutex for sharing ESP-NOW between tasks
     static ESP_NOW_MUTEX: StaticCell<Mutex<NoopRawMutex, EspNow<'static>>> = StaticCell::new();
@@ -203,14 +203,14 @@ async fn main(_spawner: Spawner) {
 
     // Spawn LED task
     #[cfg(feature = "esp32s3")]
-    _spawner.spawn(led_task(led)).unwrap();
+    _spawner.spawn(led_task(led)).expect("Failed to spawn LED task");
     
     #[cfg(feature = "esp32c6")]
-    _spawner.spawn(led_task(led)).unwrap();
+    _spawner.spawn(led_task(led)).expect("Failed to spawn LED task");
 
     // Spawn ESP-NOW tasks
-    _spawner.spawn(esp_now_receive_task(esp_now_static)).unwrap();
-    _spawner.spawn(esp_now_broadcast_task(esp_now_static)).unwrap();
+    _spawner.spawn(esp_now_receive_task(esp_now_static)).expect("Failed to spawn ESP-NOW receive task");
+    _spawner.spawn(esp_now_broadcast_task(esp_now_static)).expect("Failed to spawn ESP-NOW broadcast task");
 
     info!("All Embassy tasks spawned successfully!");
     
