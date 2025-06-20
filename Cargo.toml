@@ -3,6 +3,11 @@ edition = "2021"
 name    = "esp_now_blinky"
 version = "0.1.0"
 
+[features]
+default = ["esp32s3"]
+esp32s3 = ["esp-hal/esp32s3", "esp-backtrace/esp32s3", "esp-println/esp32s3", "esp-hal-embassy/esp32s3", "esp-wifi/esp32s3"]
+esp32c6 = ["esp-hal/esp32c6", "esp-backtrace/esp32c6", "esp-println/esp32c6", "esp-hal-embassy/esp32c6", "esp-wifi/esp32c6", "esp-hal-smartled", "smart-leds", "fugit"]
+
 [[bin]]
 name = "esp_now_blinky"
 path = "./src/bin/main.rs"
@@ -10,10 +15,47 @@ path = "./src/bin/main.rs"
 [dependencies]
 defmt = "1.0.1"
 esp-bootloader-esp-idf = "0.1.0"
+embedded-hal = "1.0.0"
+embedded-io = { version = "0.6.1", features = ["defmt-03"] }
+embedded-io-async = { version = "0.6.1", features = ["defmt-03"] }
+esp-alloc = { version = "0.8.0", features = ["defmt"] }
+bt-hci = { version = "0.2.1", features = [] }
+critical-section = "1.2.0"
+static_cell = { version = "2.1.0", features = ["nightly"] }
+trouble-host = { version = "0.1.0", features = ["gatt"] }
+
+# WS2812 LED support (ESP32-C6 only)
+esp-hal-smartled = { git = "https://github.com/esp-rs/esp-hal-community.git", package = "esp-hal-smartled", branch = "main", features = ["esp32c6"], optional = true }
+smart-leds = { version = "0.4.0", optional = true }
+fugit = { version = "0.3", optional = true }
+
 esp-hal = { version = "=1.0.0-beta.1", features = [
   "defmt",
-  "esp32s3",
   "unstable",
+] }
+
+esp-backtrace = { version = "0.16.0", features = [
+  "defmt",
+  "exception-handler",
+  "panic-handler",
+] }
+
+esp-println = { version = "0.14.0", features = [
+  "defmt-espflash",
+  "log-04"
+] }
+
+esp-hal-embassy = { version = "0.8.1", features = ["defmt"] }
+
+esp-wifi = { version = "0.14.1", features = [
+  "ble",
+  "builtin-scheduler",
+  "coex",
+  "defmt",
+  "esp-alloc",
+  "smoltcp",
+  "wifi",
+  "esp-now",
 ] }
 
 embassy-net = { version = "0.7.0", features = [
@@ -23,35 +65,18 @@ embassy-net = { version = "0.7.0", features = [
   "tcp",
   "udp",
 ] }
-embedded-io = { version = "0.6.1", features = ["defmt-03"] }
-embedded-io-async = { version = "0.6.1", features = ["defmt-03"] }
-esp-alloc = { version = "0.8.0", features = ["defmt"] }
-esp-backtrace = { version = "0.16.0", features = [
-  "defmt",
-  "esp32s3",
-  "exception-handler",
-  "panic-handler",
-] }
-esp-println = { version = "0.14.0", features = ["defmt-espflash", "esp32s3"] }
-# for more networking protocol support see https://crates.io/crates/edge-net
-bt-hci = { version = "0.2.1", features = [] }
-critical-section = "1.2.0"
+
 embassy-executor = { version = "0.7.0", features = [
   "defmt",
   "task-arena-size-20480",
 ] }
+
 embassy-time = { version = "0.4.0", features = ["defmt"] }
-esp-hal-embassy = { version = "0.8.1", features = ["defmt", "esp32s3"] }
-esp-wifi = { version = "0.14.1", features = [
-  "ble",
-  "builtin-scheduler",
-  "coex",
-  "defmt",
-  "esp-alloc",
-  "esp32s3",
-  "smoltcp",
-  "wifi",
-] }
+
+embassy-sync = { version = "0.7.0", features = ["defmt"] }
+
+heapless = { version = "0.8.0", features = ["defmt-03"] }
+
 smoltcp = { version = "0.12.0", default-features = false, features = [
   "defmt",
   "medium-ethernet",
@@ -65,17 +90,12 @@ smoltcp = { version = "0.12.0", default-features = false, features = [
   "socket-tcp",
   "socket-udp",
 ] }
-static_cell = { version = "2.1.0", features = ["nightly"] }
-trouble-host = { version = "0.1.0", features = ["gatt"] }
-
 
 [profile.dev]
-# Rust debug is too slow.
-# For debug builds always builds with some optimization
 opt-level = "s"
 
 [profile.release]
-codegen-units    = 1     # LLVM can perform better optimizations using a single thread
+codegen-units    = 1
 debug            = 2
 debug-assertions = false
 incremental      = false
