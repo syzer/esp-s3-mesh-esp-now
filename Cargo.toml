@@ -32,7 +32,7 @@ esp-backtrace = { version = "0.16.0", features = [
   "exception-handler",
   "panic-handler",
 ] }
-esp-println = { version = "0.14.0", features = ["defmt-espflash", "esp32s3"] }
+esp-println = { version = "0.14.0", features = ["defmt-espflash", "esp32s3", "log-04"] }
 # for more networking protocol support see https://crates.io/crates/edge-net
 bt-hci = { version = "0.2.1", features = [] }
 critical-section = "1.2.0"
@@ -51,6 +51,7 @@ esp-wifi = { version = "0.14.1", features = [
   "esp32s3",
   "smoltcp",
   "wifi",
+  "esp-now",
 ] }
 smoltcp = { version = "0.12.0", default-features = false, features = [
   "defmt",
