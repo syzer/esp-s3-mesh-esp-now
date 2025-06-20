@@ -92,8 +92,14 @@ async fn esp_now_receive_task(esp_now: &'static Mutex<NoopRawMutex, EspNow<'stat
         };
         
         if let Some(r) = received {
-            info!("Received {:?}", r);
-
+            // Try to interpret the payload as UTF‑8 so we can print it nicely
+            let payload = r.data();
+            if let Ok(text) = core::str::from_utf8(payload) {
+                info!("Received text \"{}\" from {:?}", text, r.info.src_address);
+            } else {
+                info!("Received bytes {:?} from {:?}", payload, r.info.src_address);
+            }
+            
             if r.info.dst_address == BROADCAST_ADDRESS {
                 let mut esp_now_guard = esp_now.lock().await;
                 if !esp_now_guard.peer_exists(&r.info.src_address) {
@@ -129,7 +135,6 @@ async fn esp_now_broadcast_task(esp_now: &'static Mutex<NoopRawMutex, EspNow<'st
         // Wait 5 seconds before sending next broadcast
         Timer::after(Duration::from_secs(5)).await;
         
-        info!("Send broadcast message");
         let status = {
             let mut esp_now_guard = esp_now.lock().await;
             esp_now_guard

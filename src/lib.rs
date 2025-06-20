@@ -1,6 +1,6 @@
 #![no_std]
 
-use defmt::info;
+use defmt::debug;
 use embassy_time::{Duration, Timer};
 
 #[cfg(feature = "esp32c6")]
@@ -80,10 +80,10 @@ impl Led {
     pub async fn cycle_color(&mut self, brightness: u8) {
         if self.gpio.is_some() {
             if brightness > 0 {
-                info!("GPIO LED ON - Hello world!");
+                debug!("GPIO LED ON");
                 let _ = self.set_color(brightness);
             } else {
-                info!("GPIO LED OFF");
+                debug!("GPIO LED OFF");
                 let _ = self.set_color(0);
             }
         }
@@ -131,10 +131,10 @@ where
     pub async fn cycle_color(&mut self, brightness: u8) {
         if self.ws2812.is_some() {
             if brightness > 0 {
-                info!("WS2812 LED - Color Cycle!");
+                debug!("WS2812 LED - On");
                 let _ = self.set_color(brightness);
             } else {
-                info!("WS2812 LED - Off");
+                debug!("WS2812 LED - Off");
                 let _ = self.set_color(0);
             }
         }
