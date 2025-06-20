@@ -24,16 +24,24 @@
 
 use defmt::info;
 use embassy_executor::Spawner;
-use embassy_time::{Duration, Instant, Timer};
+use embassy_time::{Duration, Instant};
 use esp_alloc as _;
 use esp_backtrace as _;
 use esp_hal::{
     clock::CpuClock,
-    gpio::{Io, Level, Output},
+    gpio::Io,
     rng::Rng,
     timer::systimer::SystemTimer,
     timer::timg::TimerGroup,
 };
+
+#[cfg(feature = "esp32s3")]
+use esp_hal::gpio::{Level, Output};
+
+#[cfg(feature = "esp32c6")]
+use esp_hal::{rmt::Rmt, time::Rate};
+
+use esp_now_blinky::Led;
 use esp_wifi::{
     esp_now::{BROADCAST_ADDRESS, PeerInfo},
     init,
@@ -54,12 +62,15 @@ async fn main(_spawner: Spawner) {
     // Initialize GPIO for LED
     let _io = Io::new(peripherals.IO_MUX);
     
-    // Different GPIO pins for different chips
+    // Create unified LED API for different chips
     #[cfg(feature = "esp32s3")]
-    let mut led = Output::new(peripherals.GPIO21, Level::Low, Default::default());
+    let mut led = Led::new_gpio(Output::new(peripherals.GPIO21, Level::Low, Default::default()));
     
     #[cfg(feature = "esp32c6")]
-    let mut led = Output::new(peripherals.GPIO8, Level::Low, Default::default());
+    let rmt = Rmt::new(peripherals.RMT, Rate::from_mhz(80)).unwrap();
+    
+    #[cfg(feature = "esp32c6")]
+    let mut led = Led::new_ws2812(rmt.channel0, peripherals.GPIO8);
 
     esp_alloc::heap_allocator!(size: 72 * 1024);
 
@@ -93,14 +104,9 @@ async fn main(_spawner: Spawner) {
 
     // Combined LED blinking and ESP-NOW communication loop
     loop {
-        // LED blinking with async timing
-        info!("LED ON - Hello world!");
-        led.set_high();
-        Timer::after(Duration::from_millis(500)).await;
-        
-        info!("LED OFF");
-        led.set_low();
-        Timer::after(Duration::from_millis(500)).await;
+        // LED blinking with unified API
+        led.cycle_color(50).await; // Medium brightness / ON
+        led.cycle_color(0).await;  // Off
 
         // Check for received ESP-NOW messages
         if let Some(r) = esp_now.receive() {

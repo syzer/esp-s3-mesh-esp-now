@@ -7,11 +7,12 @@ A modern async ESP-NOW wireless communication example using Embassy async runtim
 - **Automatic peer discovery**: Non-blocking peer detection and response
 - **Cross-chip compatibility**: S3 ↔ C6 communication
 - **Embassy async runtime**: Efficient cooperative multitasking
+- **Different LED types**: GPIO LED (S3) vs WS2812 RGB LED (C6)
 
 ## Hardware Support
 
-- **ESP32-S3**: Uses GPIO21 for LED, Xtensa architecture
-- **ESP32-C6**: Uses GPIO8 for LED, RISC-V architecture
+- **ESP32-S3**: Uses GPIO21 for simple GPIO LED, Xtensa architecture
+- **ESP32-C6**: Uses GPIO8 for WS2812 RGB LED with color cycling, RISC-V architecture
 
 ## Prerequisites
 
@@ -90,7 +91,9 @@ espflash flash --monitor --chip esp32c6 --log-format defmt target/riscv32imac-un
 ## How it Works
 
 1. **Embassy Async Runtime**: Uses SystemTimer for efficient non-blocking operations
-2. **Async LED Blinking**: LED toggles every 500ms using `Timer::after()` without blocking
+2. **Async LED Blinking**: 
+   - **ESP32-S3**: Simple GPIO LED toggles every 500ms using `Timer::after()`
+   - **ESP32-C6**: WS2812 RGB LED cycles through colors every 500ms using RMT peripheral
 3. **ESP-NOW Broadcasting**: Every 5 seconds, sends a broadcast message "0123456789"
 4. **Peer Discovery**: When receiving a broadcast, automatically adds the sender as a peer
 5. **Peer Response**: Responds to known peers with "Hello Peer" message
@@ -119,13 +122,14 @@ To test ESP-NOW communication between two devices:
    ```
 
 3. **Expected behavior**:
-   - Both LEDs should blink every 500ms
+   - **ESP32-S3**: Simple GPIO LED blinks on/off every 500ms
+   - **ESP32-C6**: WS2812 RGB LED cycles through rainbow colors every 500ms
    - Every 5 seconds, each device broadcasts "0123456789"
    - When device A receives B's broadcast, it adds B as a peer and responds with "Hello Peer"
    - You should see messages like:
      ```
      esp-now version (1, 0)
-     Send
+     Send broadcast message
      Send broadcast status: Success
      Received ReceivedData { data: [48, 49, 50, 51, 52, 53, 54, 55, 56, 57], info: ReceiveInfo { ... } }
      Send hello to peer status: Success
@@ -151,6 +155,18 @@ This project uses Embassy's async runtime which provides several advantages:
 - **SystemTimer Integration**: Uses ESP32's built-in SystemTimer for precise timing
 - **Zero-Cost Abstractions**: Async operations compile to efficient state machines
 - **Single-threaded**: No need for complex locking or synchronization
+
+## WS2812 LED Support (ESP32-C6 Only)
+
+The ESP32-C6 version includes support for WS2812 RGB LEDs using the RMT peripheral:
+
+- **Hardware**: Connect WS2812 LED data pin to GPIO8
+- **Features**: Automatic color cycling with HSV to RGB conversion
+- **Brightness**: Configurable brightness (50/255 when on, 0 when off)
+- **Hue Stepping**: Color advances by 10 hue steps each cycle for smooth transitions
+- **RMT Frequency**: 80 MHz for precise WS2812 timing requirements
+
+The WS2812 LED library is conditionally compiled only for ESP32-C6 builds to avoid dependency issues on ESP32-S3.
 
 ## Build Optimization
 
@@ -208,3 +224,4 @@ This script will:
 - **Just Commands**: Streamlined build/flash workflow with parallel compilation
 - **Cross-Architecture**: Demonstrates ESP-NOW communication between different ESP32 architectures
 - **Non-blocking Operations**: All timing and I/O operations use async patterns
+- **Smart LED Support**: WS2812 RGB LED support for ESP32-C6 using RMT peripheral

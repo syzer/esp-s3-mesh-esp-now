@@ -6,7 +6,7 @@ version = "0.1.0"
 [features]
 default = ["esp32s3"]
 esp32s3 = ["esp-hal/esp32s3", "esp-backtrace/esp32s3", "esp-println/esp32s3", "esp-hal-embassy/esp32s3", "esp-wifi/esp32s3"]
-esp32c6 = ["esp-hal/esp32c6", "esp-backtrace/esp32c6", "esp-println/esp32c6", "esp-hal-embassy/esp32c6", "esp-wifi/esp32c6"]
+esp32c6 = ["esp-hal/esp32c6", "esp-backtrace/esp32c6", "esp-println/esp32c6", "esp-hal-embassy/esp32c6", "esp-wifi/esp32c6", "esp-hal-smartled", "smart-leds", "fugit"]
 
 [[bin]]
 name = "esp_now_blinky"
@@ -23,6 +23,11 @@ bt-hci = { version = "0.2.1", features = [] }
 critical-section = "1.2.0"
 static_cell = { version = "2.1.0", features = ["nightly"] }
 trouble-host = { version = "0.1.0", features = ["gatt"] }
+
+# WS2812 LED support (ESP32-C6 only)
+esp-hal-smartled = { git = "https://github.com/esp-rs/esp-hal-community.git", package = "esp-hal-smartled", branch = "main", features = ["esp32c6"], optional = true }
+smart-leds = { version = "0.4.0", optional = true }
+fugit = { version = "0.3", optional = true }
 
 esp-hal = { version = "=1.0.0-beta.1", features = [
   "defmt",
