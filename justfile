@@ -8,13 +8,24 @@ default: build-s3
 list:
     @just --list
 
+# Validate both targets build correctly
+validate:
+    @echo "🔧 Validating ESP-NOW Blinky builds..."
+    @echo "Testing ESP32-S3..."
+    @just check-s3
+    @echo "✅ ESP32-S3 build OK"
+    @echo "Testing ESP32-C6..."
+    @just check-c6
+    @echo "✅ ESP32-C6 build OK"
+    @echo "🎉 All builds validated successfully!"
+
 # Build for ESP32-S3
 build-s3:
-    cargo build --features esp32s3 --target xtensa-esp32s3-none-elf
+    cargo build -j 8 --features esp32s3 --target xtensa-esp32s3-none-elf
 
 # Build for ESP32-C6
 build-c6:
-    cargo build --no-default-features --features esp32c6 --target riscv32imc-esp-espidf
+    cargo build -j 8 --no-default-features --features esp32c6 --target riscv32imac-unknown-none-elf
 
 # Build for both chips
 build-all: build-s3 build-c6
@@ -25,7 +36,7 @@ flash-s3:
 
 # Flash to ESP32-C6
 flash-c6:
-    espflash flash --monitor --chip esp32c6 --log-format defmt target/riscv32imc-esp-espidf/debug/esp_now_blinky
+    espflash flash --monitor --chip esp32c6 --log-format defmt target/riscv32imac-unknown-none-elf/debug/esp_now_blinky
 
 # Clean build artifacts
 clean:
@@ -33,19 +44,19 @@ clean:
 
 # Check code for both targets
 check-s3:
-    cargo check --features esp32s3 --target xtensa-esp32s3-none-elf
+    cargo check -j 8 --features esp32s3 --target xtensa-esp32s3-none-elf
 
 check-c6:
-    cargo check --no-default-features --features esp32c6 --target riscv32imc-esp-espidf
+    cargo check -j 8 --no-default-features --features esp32c6 --target riscv32imac-unknown-none-elf
 
 check-all: check-s3 check-c6
 
 # Release builds
 release-s3:
-    cargo build --release --features esp32s3 --target xtensa-esp32s3-none-elf
+    cargo build -j 8 --release --features esp32s3 --target xtensa-esp32s3-none-elf
 
 release-c6:
-    cargo build --release --no-default-features --features esp32c6 --target riscv32imc-esp-espidf
+    cargo build -j 8 --release --no-default-features --features esp32c6 --target riscv32imac-unknown-none-elf
 
 release-all: release-s3 release-c6
 
@@ -54,7 +65,7 @@ flash-release-s3:
     espflash flash --monitor --chip esp32s3 --log-format defmt target/xtensa-esp32s3-none-elf/release/esp_now_blinky
 
 flash-release-c6:
-    espflash flash --monitor --chip esp32c6 --log-format defmt target/riscv32imc-esp-espidf/release/esp_now_blinky
+    espflash flash --monitor --chip esp32c6 --log-format defmt target/riscv32imac-unknown-none-elf/release/esp_now_blinky
 
 # Monitor serial output for each chip
 monitor-s3:

@@ -1,9 +1,18 @@
 fn main() {
-    linker_be_nice();  // keep THIS!
-    // Only add basic linker arguments that work with both GNU LD and rust-lld
+    // Only call linker_be_nice for Xtensa targets (ESP32-S3)
+    // RISC-V targets (ESP32-C6) use rust-lld which doesn't support the error handling script
+    let target = std::env::var("TARGET").unwrap_or_default();
+    if target.contains("xtensa") {
+        linker_be_nice();
+    }
+    
+    // Only add defmt linker script - esp-hal already provides linkall.x
     println!("cargo:rustc-link-arg=-Tdefmt.x");
-    // make sure linkall.x is the last linker script (otherwise might cause problems with flip-link)
-    println!("cargo:rustc-link-arg=-Tlinkall.x");
+    
+    // Don't add linkall.x for RISC-V targets to avoid duplicate RAM region errors
+    if target.contains("xtensa") {
+        println!("cargo:rustc-link-arg=-Tlinkall.x");
+    }
 }
 
 fn linker_be_nice() {
