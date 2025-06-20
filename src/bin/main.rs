@@ -24,7 +24,7 @@
 
 use defmt::info;
 use embassy_executor::Spawner;
-use embassy_time::{Duration, Instant};
+use embassy_time::{Duration, Timer};
 use esp_alloc as _;
 use esp_backtrace as _;
 use esp_hal::{
@@ -34,6 +34,7 @@ use esp_hal::{
     timer::systimer::SystemTimer,
     timer::timg::TimerGroup,
 };
+use static_cell::StaticCell;
 
 #[cfg(feature = "esp32s3")]
 use esp_hal::gpio::{Level, Output};
@@ -43,11 +44,102 @@ use esp_hal::{rmt::Rmt, time::Rate};
 
 use esp_now_blinky::Led;
 use esp_wifi::{
-    esp_now::{BROADCAST_ADDRESS, PeerInfo},
+    esp_now::{BROADCAST_ADDRESS, PeerInfo, EspNow},
     init,
+};
+use embassy_sync::{
+    blocking_mutex::raw::NoopRawMutex,
+    mutex::Mutex,
 };
 
 extern crate alloc;
+
+// Macro to generate LED task for different chip types
+macro_rules! create_led_task {
+    ($led_type:ty) => {
+        #[embassy_executor::task]
+        async fn led_task(mut led: $led_type) {
+            #[cfg(feature = "esp32s3")]
+            info!("ESP32-S3 LED task started");
+            #[cfg(feature = "esp32c6")]
+            info!("ESP32-C6 LED task started");
+            
+            loop {
+                led.cycle_color(50).await; // Medium brightness / ON
+                led.cycle_color(0).await;  // Off
+            }
+        }
+    };
+}
+
+// Generate LED task for the appropriate chip
+#[cfg(feature = "esp32s3")]
+create_led_task!(Led);
+
+#[cfg(feature = "esp32c6")]
+create_led_task!(Led<esp_hal::rmt::Channel<esp_hal::Blocking, 0>>);
+
+// Embassy task for ESP-NOW receiving and peer management
+#[embassy_executor::task]
+async fn esp_now_receive_task(esp_now: &'static Mutex<NoopRawMutex, EspNow<'static>>) {
+    info!("ESP-NOW receive task started");
+    
+    loop {
+        // Check for received ESP-NOW messages
+        let received = {
+            let esp_now_guard = esp_now.lock().await;
+            esp_now_guard.receive()
+        };
+        
+        if let Some(r) = received {
+            info!("Received {:?}", r);
+
+            if r.info.dst_address == BROADCAST_ADDRESS {
+                let mut esp_now_guard = esp_now.lock().await;
+                if !esp_now_guard.peer_exists(&r.info.src_address) {
+                    esp_now_guard
+                        .add_peer(PeerInfo {
+                            interface: esp_wifi::esp_now::EspNowWifiInterface::Sta,
+                            peer_address: r.info.src_address,
+                            lmk: None,
+                            channel: None,
+                            encrypt: false,
+                        })
+                        .unwrap();
+                }
+                let status = esp_now_guard
+                    .send(&r.info.src_address, b"Hello Peer")
+                    .unwrap()
+                    .wait();
+                info!("Send hello to peer status: {:?}", status);
+            }
+        }
+        
+        // Small delay to prevent busy waiting
+        Timer::after(Duration::from_millis(10)).await;
+    }
+}
+
+// Embassy task for ESP-NOW periodic broadcasting
+#[embassy_executor::task]
+async fn esp_now_broadcast_task(esp_now: &'static Mutex<NoopRawMutex, EspNow<'static>>) {
+    info!("ESP-NOW broadcast task started");
+    
+    loop {
+        // Wait 5 seconds before sending next broadcast
+        Timer::after(Duration::from_secs(5)).await;
+        
+        info!("Send broadcast message");
+        let status = {
+            let mut esp_now_guard = esp_now.lock().await;
+            esp_now_guard
+                .send(&BROADCAST_ADDRESS, b"0123456789")
+                .unwrap()
+                .wait()
+        };
+        info!("Send broadcast status: {:?}", status);
+    }
+}
 
 // This creates a default app-descriptor required by the esp-idf bootloader.
 // For more information see: <https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/system/app_image_format.html#application-description>
@@ -64,13 +156,13 @@ async fn main(_spawner: Spawner) {
     
     // Create unified LED API for different chips
     #[cfg(feature = "esp32s3")]
-    let mut led = Led::new_gpio(Output::new(peripherals.GPIO21, Level::Low, Default::default()));
+    let led = Led::new_gpio(Output::new(peripherals.GPIO21, Level::Low, Default::default()));
     
     #[cfg(feature = "esp32c6")]
     let rmt = Rmt::new(peripherals.RMT, Rate::from_mhz(80)).unwrap();
     
     #[cfg(feature = "esp32c6")]
-    let mut led = Led::new_ws2812(rmt.channel0, peripherals.GPIO8);
+    let led = Led::new_ws2812(rmt.channel0, peripherals.GPIO8);
 
     esp_alloc::heap_allocator!(size: 72 * 1024);
 
@@ -82,65 +174,44 @@ async fn main(_spawner: Spawner) {
 
     let timg0 = TimerGroup::new(peripherals.TIMG0);
 
-    let esp_wifi_ctrl = init(
+    // Use static_cell to make esp_wifi_ctrl live for 'static
+    static ESP_WIFI_CTRL: StaticCell<esp_wifi::EspWifiController> = StaticCell::new();
+    let esp_wifi_ctrl = ESP_WIFI_CTRL.init(init(
         timg0.timer0,
         Rng::new(peripherals.RNG),
         peripherals.RADIO_CLK,
-    )
-    .unwrap();
+    ).unwrap());
 
     let wifi = peripherals.WIFI;
-    let (mut controller, interfaces) = esp_wifi::wifi::new(&esp_wifi_ctrl, wifi).unwrap();
+    let (mut controller, interfaces) = esp_wifi::wifi::new(esp_wifi_ctrl, wifi).unwrap();
     controller.set_mode(esp_wifi::wifi::WifiMode::Sta).unwrap();
     controller.start().unwrap();
 
-    let mut esp_now = interfaces.esp_now;
+    let esp_now = interfaces.esp_now;
+    esp_now.set_channel(11).unwrap();
 
     info!("esp-now version {:?}", esp_now.version().unwrap());
 
-    esp_now.set_channel(11).unwrap();
+    // Create a static mutex for sharing ESP-NOW between tasks
+    static ESP_NOW_MUTEX: StaticCell<Mutex<NoopRawMutex, EspNow<'static>>> = StaticCell::new();
+    let esp_now_static = ESP_NOW_MUTEX.init(Mutex::new(esp_now));
 
-    let mut next_send_time = Instant::now() + Duration::from_secs(5);
+    // Spawn LED task
+    #[cfg(feature = "esp32s3")]
+    _spawner.spawn(led_task(led)).unwrap();
+    
+    #[cfg(feature = "esp32c6")]
+    _spawner.spawn(led_task(led)).unwrap();
 
-    // Combined LED blinking and ESP-NOW communication loop
+    // Spawn ESP-NOW tasks
+    _spawner.spawn(esp_now_receive_task(esp_now_static)).unwrap();
+    _spawner.spawn(esp_now_broadcast_task(esp_now_static)).unwrap();
+
+    info!("All Embassy tasks spawned successfully!");
+    
+    // Main task can just wait or handle other coordination
     loop {
-        // LED blinking with unified API
-        led.cycle_color(50).await; // Medium brightness / ON
-        led.cycle_color(0).await;  // Off
-
-        // Check for received ESP-NOW messages
-        if let Some(r) = esp_now.receive() {
-            info!("Received {:?}", r);
-
-            if r.info.dst_address == BROADCAST_ADDRESS {
-                if !esp_now.peer_exists(&r.info.src_address) {
-                    esp_now
-                        .add_peer(PeerInfo {
-                            interface: esp_wifi::esp_now::EspNowWifiInterface::Sta,
-                            peer_address: r.info.src_address,
-                            lmk: None,
-                            channel: None,
-                            encrypt: false,
-                        })
-                        .unwrap();
-                }
-                let status = esp_now
-                    .send(&r.info.src_address, b"Hello Peer")
-                    .unwrap()
-                    .wait();
-                info!("Send hello to peer status: {:?}", status);
-            }
-        }
-
-        // Send broadcast message every 5 seconds
-        if Instant::now() >= next_send_time {
-            next_send_time = Instant::now() + Duration::from_secs(5);
-            info!("Send broadcast message");
-            let status = esp_now
-                .send(&BROADCAST_ADDRESS, b"0123456789")
-                .unwrap()
-                .wait();
-            info!("Send broadcast status: {:?}", status);
-        }
+        Timer::after(Duration::from_secs(10)).await;
+        info!("Main task heartbeat - Embassy tasks running...");
     }
 }

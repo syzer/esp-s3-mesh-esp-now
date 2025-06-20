@@ -406,6 +406,7 @@ checksum = "cef1a8a1ea892f9b656de0295532ac5d8067e9830d49ec75076291fd6066b136"
 dependencies = [
  "cfg-if",
  "critical-section",
+ "defmt 1.0.1",
  "embedded-io-async",
  "futures-sink",
  "futures-util",
@@ -946,6 +947,7 @@ dependencies = [
  "defmt 1.0.1",
  "embassy-executor",
  "embassy-net",
+ "embassy-sync 0.7.0",
  "embassy-time",
  "embedded-hal 1.0.0",
  "embedded-io",
@@ -959,6 +961,7 @@ dependencies = [
  "esp-println",
  "esp-wifi",
  "fugit",
+ "heapless",
  "smart-leds",
  "smoltcp",
  "static_cell",
