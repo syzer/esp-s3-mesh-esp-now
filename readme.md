@@ -116,3 +116,7 @@ espflash flash --monitor --chip esp32c6 --log-format defmt target/riscv32imac-es
 ├── justfile             # Build commands
 └── readme.md           # This file
 ```
+
+
+TODO
+just build-s3 works but just build-c6 dont

@@ -1,20 +1,37 @@
-[target.xtensa-esp32s3-none-elf]
-runner = "espflash flash --monitor --chip esp32s3 --log-format defmt"
-
-[target.riscv32imac-esp-espidf]
-runner = "espflash flash --monitor --chip esp32c6 --log-format defmt"
+[target.'cfg(target_arch = "riscv32")']
+runner    = "espflash flash --monitor --chip esp32c6 --log-format defmt"
+rustflags = [
+  # Pull in the linker scripts shipped by the ESP‑HAL / esp‑tools
+  "-C", "link-arg=-Tlinkall.x",
+  "-C", "link-arg=-Tdefmt.x",
+]
 
 [env]
 DEFMT_LOG="info"
 
-[build]
-rustflags = [
-  "-C", "link-arg=-nostartfiles",
-  "-Z", "stack-protector=all",
-]
-
 # Default target (can be overridden with --target)
-target = "xtensa-esp32s3-none-elf"
+# target= "riscv32imac-unknown-none-elf"
+
+# [target.'cfg(target_arch = "riscv32")']
+# runner    = "espflash flash --monitor --partition-table=partitions.csv"
+# rustflags = [
+#   "-C", "link-arg=-Tlinkall.x",
+#   "-C", "force-frame-pointers",
+# ]
+
+# [target.'cfg(target_arch = "xtensa")']
+# runner    = "espflash flash --monitor --partition-table=partitions.csv"
+# rustflags = [
+#   # GNU LD
+#   "-C", "link-arg=-Wl,-Tlinkall.x",
+#   "-C", "link-arg=-nostartfiles",
+
+#   # LLD
+#   # "-C", "link-arg=-Tlinkall.x",
+#   # "-C", "linker=rust-lld",
+# ]
+
+
 
 [unstable]
 build-std = ["alloc", "core"]

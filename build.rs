@@ -1,5 +1,6 @@
 fn main() {
-    linker_be_nice();
+    linker_be_nice();  // keep THIS!
+    // Only add basic linker arguments that work with both GNU LD and rust-lld
     println!("cargo:rustc-link-arg=-Tdefmt.x");
     // make sure linkall.x is the last linker script (otherwise might cause problems with flip-link)
     println!("cargo:rustc-link-arg=-Tlinkall.x");
