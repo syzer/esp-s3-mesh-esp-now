@@ -27,7 +27,13 @@ fn main() -> ! {
     let peripherals = esp_hal::init(config);
 
     esp_alloc::heap_allocator!(size: 72 * 1024);
+    
+    // Different GPIO pins for different chips
+    #[cfg(feature = "esp32s3")]
     let mut led = Output::new(peripherals.GPIO21, Level::Low, Default::default());
+    
+    #[cfg(feature = "esp32c6")]
+    let mut led = Output::new(peripherals.GPIO8, Level::Low, Default::default());
 
     let timg0 = TimerGroup::new(peripherals.TIMG0);
     let mut delay = Delay::new();

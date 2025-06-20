@@ -1,6 +1,9 @@
 [target.xtensa-esp32s3-none-elf]
 runner = "espflash flash --monitor --chip esp32s3 --log-format defmt"
 
+[target.riscv32imac-esp-espidf]
+runner = "espflash flash --monitor --chip esp32c6 --log-format defmt"
+
 [env]
 DEFMT_LOG="info"
 
@@ -10,6 +13,7 @@ rustflags = [
   "-Z", "stack-protector=all",
 ]
 
+# Default target (can be overridden with --target)
 target = "xtensa-esp32s3-none-elf"
 
 [unstable]
