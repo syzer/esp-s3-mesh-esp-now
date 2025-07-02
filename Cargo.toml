@@ -96,9 +96,9 @@ opt-level = "s"
 
 [profile.release]
 codegen-units    = 1
-debug            = 2
+debug            = 1          # Reduced from 2 - less debug info but still some
 debug-assertions = false
 incremental      = false
-lto              = 'fat'
-opt-level        = 's'
+lto              = 'thin'     # Changed from 'fat' - less aggressive linking
+opt-level        = 's'        # Size optimization (good for embedded)
 overflow-checks  = false
