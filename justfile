@@ -61,10 +61,10 @@ release-c6:
 release-all: release-s3 release-c6
 
 # Flash release builds
-flash-release-s3:
+flash-release-s3: release-s3
     espflash flash --monitor --chip esp32s3 --log-format defmt target/xtensa-esp32s3-none-elf/release/esp_now_blinky
 
-flash-release-c6:
+flash-release-c6: release-c6
     espflash flash --monitor --chip esp32c6 --log-format defmt target/riscv32imac-unknown-none-elf/release/esp_now_blinky
 
 # Monitor serial output for each chip
